@@ -32,11 +32,18 @@ npm run db:seed               # admin user + made-up sample data
 npm run dev                   # http://localhost:3000
 ```
 
+Before pushing, run the same checks as CI (`.github/workflows/ci.yml`):
+
+```bash
+npm run lint && npm run typecheck && npm test && npm run build
+```
+
 ## Going live — read before touching production
 
 1. **Get the live database details** from the server's `.env` (`DATABASE_URL`). Find out whether
    it's PostgreSQL or MySQL. If it's MySQL, change `provider` in `prisma/schema.prisma` and swap
-   `@prisma/adapter-pg` for `@prisma/adapter-mariadb` in `src/lib/db.ts`.
+   `@prisma/adapter-pg` for `@prisma/adapter-mariadb` in `src/lib/db.ts`. Receipt numbering
+   (`nextReceiptNumber` in `src/app/actions/payments.ts`) also uses a PostgreSQL lock.
 2. **Take a backup** of the live database, restore it into a copy, and point `.env` at the copy.
 3. Run `npx prisma db pull --print` against the copy and compare it with `prisma/schema.prisma`.
    Adjust this schema to match the real one. **Never run `db push` or `migrate` against production.**
