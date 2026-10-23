@@ -43,3 +43,6 @@ next-env.d.ts
 
 # prisma client (regenerated on npm install)
 /src/generated/
+
+# uploaded files (served by /api/documents/serve; point UPLOADS_DIR outside the app in production)
+/uploads/

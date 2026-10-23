@@ -7,6 +7,7 @@ import { ActionForm, ConfirmButton } from "@/components/action-form";
 import { deleteTenant, revokePortalAccess, setPortalPassword } from "@/app/actions/tenants";
 import { date, initials, money } from "@/lib/format";
 import { effectiveStatus } from "@/lib/domain";
+import { fileUrl } from "@/lib/files";
 
 export default async function TenantPage({ params }: PageProps<"/tenants/[id]">) {
   const { id } = await params;
@@ -66,8 +67,18 @@ export default async function TenantPage({ params }: PageProps<"/tenants/[id]">)
                   <dd className="mt-0.5">{value || "—"}</dd>
                 </div>
               ))}
+              <div>
+                <dt className="text-xs font-semibold tracking-wider text-muted uppercase">Emirates ID Copy</dt>
+                <dd className="mt-0.5">
+                  {tenant.emiratesIdCopy ? (
+                    <a href={fileUrl(tenant.emiratesIdCopy)} target="_blank" rel="noreferrer" className="text-primary hover:underline">View file</a>
+                  ) : (
+                    "—"
+                  )}
+                </dd>
+              </div>
             </dl>
-            {tenant.notes && <p className="mt-4 border-t border-border pt-4 text-sm whitespace-pre-line">{tenant.notes}</p>}
+            {tenant.notes &&<p className="mt-4 border-t border-border pt-4 text-sm whitespace-pre-line">{tenant.notes}</p>}
           </Card>
 
           <div>
