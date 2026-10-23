@@ -3,13 +3,13 @@
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireAdmin, requireUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
-import { firstError, formObject, type ActionState } from "@/lib/forms";
+import { firstError, formObject, newPassword as password, type ActionState } from "@/lib/forms";
 import { Role } from "@/generated/prisma/enums";
-
-const password = z.string().min(10, "must be at least 10 characters");
+import { verifyTotp } from "@/lib/totp";
 
 const createSchema = z.object({
   name: z.string().min(1, "required"),
@@ -73,4 +73,39 @@ export async function changePassword(_: ActionState, formData: FormData): Promis
   await db.user.update({ where: { id: user.id }, data: { password: await bcrypt.hash(parsed.data.newPassword, 12) } });
   await audit({ action: "UPDATE", entity: "User", entityId: user.id, userId: user.id, details: { password: "changed" } });
   return undefined;
+}
+
+const codeSchema = z.object({ code: z.string().min(1, "required") });
+
+/** Turns on two-factor sign-in once the user proves their app has the secret shown on the Account page. */
+export async function enableTwoFactor(_: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireUser();
+  const parsed = codeSchema.extend({ secret: z.string().regex(/^[A-Z2-7]{32}$/) }).safeParse(formObject(formData));
+  if (!parsed.success) return { error: firstError(parsed.error) };
+  if (!verifyTotp(parsed.data.secret, parsed.data.code)) return { error: "That code didn't match. Scan the QR code again and enter the current code." };
+
+  await db.user.update({ where: { id: user.id }, data: { twoFactorSecret: parsed.data.secret } });
+  await audit({ action: "UPDATE", entity: "User", entityId: user.id, userId: user.id, details: { twoFactor: "enabled" } });
+  redirect("/account");
+}
+
+export async function disableTwoFactor(_: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireUser();
+  const parsed = codeSchema.safeParse(formObject(formData));
+  if (!parsed.success) return { error: firstError(parsed.error) };
+
+  const record = await db.user.findUniqueOrThrow({ where: { id: user.id }, omit: { twoFactorSecret: false } });
+  if (!record.twoFactorSecret || !verifyTotp(record.twoFactorSecret, parsed.data.code)) return { error: "That code didn't work." };
+  await db.user.update({ where: { id: user.id }, data: { twoFactorSecret: null } });
+  await audit({ action: "UPDATE", entity: "User", entityId: user.id, userId: user.id, details: { twoFactor: "disabled" } });
+  revalidatePath("/account");
+  return undefined;
+}
+
+/** For a user who has lost their phone: they can sign in with just their password and set it up again. */
+export async function resetTwoFactor(id: string) {
+  const admin = await requireAdmin();
+  await db.user.update({ where: { id }, data: { twoFactorSecret: null } });
+  await audit({ action: "UPDATE", entity: "User", entityId: id, userId: admin.id, details: { twoFactor: "reset by admin" } });
+  revalidatePath("/users");
 }

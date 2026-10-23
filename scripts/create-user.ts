@@ -4,6 +4,7 @@
 //
 // The password is typed at a hidden prompt so it never lands in shell history.
 // For scripts, pass --password-env NAME to read it from an environment variable instead.
+// Add --reset-2fa to also turn off two-factor sign-in for someone who has lost their phone.
 import "dotenv/config";
 import { createInterface } from "node:readline";
 import { parseArgs } from "node:util";
@@ -35,6 +36,7 @@ async function main() {
       name: { type: "string" },
       role: { type: "string", default: "ADMIN" },
       "password-env": { type: "string" },
+      "reset-2fa": { type: "boolean", default: false },
     },
   });
 
@@ -59,10 +61,10 @@ async function main() {
     const existing = await db.user.findUnique({ where: { email } });
     await db.user.upsert({
       where: { email },
-      update: { password: hash, role, ...(values.name ? { name: values.name } : {}) },
+      update: { password: hash, role, ...(values.name ? { name: values.name } : {}), ...(values["reset-2fa"] ? { twoFactorSecret: null } : {}) },
       create: { email, name: values.name ?? email.split("@")[0], role, password: hash },
     });
-    console.log(`${existing ? "Updated" : "Created"} ${role.toLowerCase()} login for ${email}`);
+    console.log(`${existing ? "Updated" : "Created"} ${role.toLowerCase()} login for ${email}${values["reset-2fa"] ? " (two-factor sign-in off)" : ""}`);
   } finally {
     await db.$disconnect();
   }

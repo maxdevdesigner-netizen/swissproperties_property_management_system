@@ -1,6 +1,9 @@
-import type { ZodError } from "zod";
+import { z, type ZodError } from "zod";
 
 export type ActionState = { error?: string } | undefined;
+
+/** Rules for any password a staff member chooses. */
+export const newPassword = z.string().min(10, "must be at least 10 characters");
 
 export function firstError(err: ZodError): string {
   const issue = err.issues[0];

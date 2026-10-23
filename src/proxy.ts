@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 
 // /api/cron checks its own bearer secret.
-const PUBLIC_PATHS = ["/login", "/forgot-password", "/api/auth", "/api/health", "/api/cron"];
+const PUBLIC_PATHS = ["/login", "/forgot-password", "/reset-password", "/api/auth", "/api/health", "/api/cron"];
 
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;

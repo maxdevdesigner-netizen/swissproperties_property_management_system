@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { emailConfigured } from "@/lib/email";
 
 export async function GET() {
   const started = Date.now();
@@ -12,7 +13,7 @@ export async function GET() {
     {
       status: dbStatus === "ok" ? "ok" : "degraded",
       db: dbStatus,
-      email: process.env.SMTP_HOST ? "configured" : "not configured",
+      email: emailConfigured() ? "configured" : "not configured",
       latencyMs: Date.now() - started,
       timestamp: new Date().toISOString(),
     },

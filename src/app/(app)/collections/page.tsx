@@ -5,9 +5,26 @@ import { Badge, Card, PageHeader, StatCard, Table } from "@/components/ui";
 import { money } from "@/lib/format";
 import { arrearsSummary, riskLevel, startOfDay } from "@/lib/domain";
 import { remindTenants } from "@/app/actions/reminders";
+import { emailConfigured } from "@/lib/email";
 
-export default async function CollectionsPage() {
+function reminderSummary(params: Record<string, string | undefined>): string | null {
+  const [emailed, logged, noEmail, failed] = ["emailed", "logged", "noEmail", "failed"].map((k) => Number(params[k]) || 0);
+  if (!emailed && !logged && !noEmail && !failed) return null;
+  const s = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+  return [
+    emailed && `Reminder emailed to ${s(emailed, "tenant")}.`,
+    logged && `Reminder logged for ${s(logged, "tenant")} (email isn't set up, so nothing was sent).`,
+    noEmail && `${s(noEmail, "tenant")} skipped: no email address on file.`,
+    failed && `${s(failed, "email")} couldn't be sent. Try again later.`,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+export default async function CollectionsPage({ searchParams }: PageProps<"/collections">) {
   const brand = await requireWorkspace();
+  const notice = reminderSummary((await searchParams) as Record<string, string | undefined>);
+  const sending = emailConfigured();
   const today = startOfDay();
   const [unpaid, activeLeases] = await Promise.all([
     db.payment.findMany({
@@ -28,6 +45,7 @@ export default async function CollectionsPage() {
   return (
     <>
       <PageHeader title="Collections" subtitle="Who owes what, and who's most likely to fall behind." />
+      {notice && <p className="mb-6 rounded-xl bg-primary-soft px-4 py-3 text-sm text-primary">{notice}</p>}
       <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Total Outstanding" value={money(summary.totalOutstanding)} tone="danger" />
         <StatCard label="Overdue Payments" value={summary.totalCount} hint="across all tenants" />
@@ -51,7 +69,9 @@ export default async function CollectionsPage() {
       <form action={remindTenants}>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-lg font-bold">Outstanding by tenant</h2>
-          <button className="rounded-lg border border-border px-3 py-1.5 text-sm font-semibold hover:bg-surface-2">Log reminder for selected</button>
+          <button className="rounded-lg border border-border px-3 py-1.5 text-sm font-semibold hover:bg-surface-2">
+            {sending ? "Email reminder to selected" : "Log reminder for selected"}
+          </button>
         </div>
         <Table head={["", "Tenant", "Outstanding", "Payments", "Oldest", "Risk"]}>
           {rows.map((r) => (

@@ -99,15 +99,18 @@ enum AuditAction {
 }
 
 model User {
-  id            String         @id @default(cuid())
-  name          String?
-  email         String         @unique
-  password      String
-  role          Role           @default(STAFF)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  notifications Notification[]
-  auditLogs     AuditLog[]
+  id              String         @id @default(cuid())
+  name            String?
+  email           String         @unique
+  password        String
+  role            Role           @default(STAFF)
+  // Authenticator-app secret (base32). Set means two-factor sign-in is on. Check the live
+  // column name with `prisma db pull` and add @map if it differs.
+  twoFactorSecret String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  notifications   Notification[]
+  auditLogs       AuditLog[]
 }
 
 model Property {

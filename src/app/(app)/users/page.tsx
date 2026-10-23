@@ -2,13 +2,17 @@ import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { Avatar, Card, Field, PageHeader } from "@/components/ui";
 import { ActionForm, ConfirmButton } from "@/components/action-form";
-import { createUser, deleteUser, updateUserRole } from "@/app/actions/users";
+import { createUser, deleteUser, resetTwoFactor, updateUserRole } from "@/app/actions/users";
 import { date, humanize } from "@/lib/format";
 import { Role } from "@/generated/prisma/enums";
 
 export default async function UsersPage() {
   const me = await requireAdmin();
-  const users = await db.user.findMany({ orderBy: { createdAt: "asc" } });
+  const [users, withTwoFactor] = await Promise.all([
+    db.user.findMany({ orderBy: { createdAt: "asc" } }),
+    db.user.findMany({ where: { twoFactorSecret: { not: null } }, select: { id: true } }),
+  ]);
+  const twoFactorOn = new Set(withTwoFactor.map((u) => u.id));
 
   return (
     <>
@@ -22,7 +26,10 @@ export default async function UsersPage() {
                 <p className="font-semibold">
                   {u.name ?? "—"} {u.id === me.id && <span className="ml-1 rounded bg-primary-soft px-1.5 text-xs text-primary">You</span>}
                 </p>
-                <p className="text-sm text-muted">{u.email} · Joined {date(u.createdAt)}</p>
+                <p className="text-sm text-muted">
+                  {u.email} · Joined {date(u.createdAt)}
+                  {twoFactorOn.has(u.id) && " · 2FA on"}
+                </p>
               </div>
               <form action={updateUserRole.bind(null, u.id)} className="flex gap-2">
                 <select name="role" defaultValue={u.role} className="input w-32" disabled={u.id === me.id}>
@@ -32,6 +39,14 @@ export default async function UsersPage() {
                 </select>
                 {u.id !== me.id && <button className="rounded-lg border border-border px-3 text-sm font-semibold hover:bg-surface-2">Save</button>}
               </form>
+              {u.id !== me.id && twoFactorOn.has(u.id) && (
+                <ConfirmButton
+                  action={resetTwoFactor.bind(null, u.id)}
+                  label="Reset 2FA"
+                  confirm={`Turn off two-factor sign-in for ${u.email}? Do this if they've lost their phone; they can set it up again.`}
+                  variant="outline"
+                />
+              )}
               {u.id !== me.id && <ConfirmButton action={deleteUser.bind(null, u.id)} label="Remove" confirm={`Remove ${u.email}?`} />}
             </Card>
           ))}

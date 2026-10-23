@@ -10,7 +10,7 @@ function createClient() {
     // tenant.portalPassword through /api/dashboard; this makes that impossible
     // unless a query opts back in with `omit: { field: false }`.
     omit: {
-      user: { password: true },
+      user: { password: true, twoFactorSecret: true },
       tenant: { portalPassword: true },
     },
   });
