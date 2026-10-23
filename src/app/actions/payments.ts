@@ -12,6 +12,9 @@ import { PaymentMethod } from "@/generated/prisma/enums";
 import type { Prisma } from "@/generated/prisma/client";
 
 async function nextReceiptNumber(tx: Prisma.TransactionClient) {
+  // Two payments settled at the same moment would otherwise count the same receipts and pick the
+  // same number. This lock makes the second wait until the first commits; it's released at commit.
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('receipt-number'))`;
   const year = new Date().getFullYear();
   const count = await tx.payment.count({ where: { receiptNumber: { startsWith: `RCPT-${year}-` } } });
   return `RCPT-${year}-${String(count + 1).padStart(5, "0")}`;
