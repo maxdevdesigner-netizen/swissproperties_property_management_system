@@ -11,7 +11,8 @@
     "db:dev": "prisma dev --name swiss-pms",
     "db:push": "prisma db push",
     "db:seed": "prisma db seed",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "user:create": "tsx scripts/create-user.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.1",
