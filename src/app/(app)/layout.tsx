@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Bell, ChevronsUpDown, Home, Search } from "lucide-react";
+import { ChevronsUpDown, Home, Search } from "lucide-react";
+import { NotificationBell } from "@/components/notification-bell";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getWorkspace, WORKSPACES } from "@/lib/workspace";
@@ -39,14 +40,8 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
             </label>
           </form>
           <ThemeToggle />
-          <Link href="/notifications" className="relative rounded-lg p-2 text-muted hover:bg-surface-2 hover:text-text" aria-label="Notifications">
-            <Bell className="size-4" />
-            {unread > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 rounded-full bg-primary px-1.5 text-[10px] font-bold text-white">
-                {unread > 99 ? "99+" : unread}
-              </span>
-            )}
-          </Link>
+          {/* Keyed by the count so a server refresh (e.g. after "Mark all read") resets it. */}
+          <NotificationBell key={unread} initial={unread} />
           <Link href="/account" className="flex items-center gap-2">
             <span className="flex size-8 items-center justify-center rounded-full bg-primary-soft text-sm font-bold text-primary">
               {(user.name ?? user.email ?? "?")[0].toUpperCase()}
