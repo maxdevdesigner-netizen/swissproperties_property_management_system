@@ -11,11 +11,11 @@ dunning logic) are best guesses and need checking against the real behaviour.
 | Layer | Live app | Rebuild |
 | --- | --- | --- |
 | Framework | Next.js App Router, Turbopack build | Next.js 16 App Router + TypeScript |
-| Auth | NextAuth (`/api/auth/session`, credentials email + password, forgot password, 2FA setup/disable) | Auth.js (NextAuth v5) credentials + bcrypt |
+| Auth | NextAuth (`/api/auth/session`, credentials email + password, forgot password, 2FA setup/disable) | NextAuth v4 credentials + bcrypt, password reset by email, TOTP 2FA |
 | DB / ORM | Prisma-style (cuid ids, Decimal serialised as strings) | Prisma — schema in `prisma/schema.prisma` mirrors live field names |
 | Payments | Stripe (`payment.stripeSessionId`) | Stripe Checkout (phase 2) |
 | Monitoring | Sentry (CSP allows `*.ingest.sentry.io`) | optional |
-| Email | health check reports an email provider | Nodemailer SMTP |
+| Email | health check reports an email provider | Nodemailer SMTP (password reset, payment reminders) |
 | UI | Tailwind, blue primary `#2563eb`, orange CTAs, light/dark theme, Cmd+K "Go to…" | Tailwind CSS v4 |
 | Hosting | nginx + ModSecurity, host rate-limits bursts (HTTP 429) | same host, `next start` behind nginx |
 | Misc | PWA manifest, `robots: noindex,nofollow`, strict CSP + security headers | same headers in `next.config.ts` |
