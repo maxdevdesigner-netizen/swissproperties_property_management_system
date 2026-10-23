@@ -6,7 +6,7 @@ import { date, money } from "@/lib/format";
 /**
  * Creates overdue-payment and expiring-lease alerts. Each alert has a dedupe key,
  * so running this repeatedly is safe. The live app ran it on every page load;
- * here it runs from the Notifications page or a scheduled call to /api/notifications/generate.
+ * here it runs from the Notifications page or a scheduled call to /api/cron/notifications.
  */
 export async function generateNotifications() {
   const today = startOfDay();

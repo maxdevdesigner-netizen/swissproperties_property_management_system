@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { generateNotifications } from "@/lib/notifications";
+import { expireLeases } from "@/lib/leases";
 import { EmptyState, PageHeader, cn } from "@/components/ui";
 
 async function markAllRead() {
@@ -15,6 +16,7 @@ async function markAllRead() {
 async function refresh() {
   "use server";
   await requireUser();
+  await expireLeases();
   await generateNotifications();
   revalidatePath("/", "layout");
 }

@@ -2,12 +2,15 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Building2, MapPin, Pencil, Plus } from "lucide-react";
 import { db } from "@/lib/db";
+import { requireWorkspace } from "@/lib/workspace";
+import { OtherWorkspace } from "@/components/other-workspace";
 import { Avatar, Badge, ButtonLink, Card, EmptyState, StatCard } from "@/components/ui";
 import { ConfirmButton } from "@/components/action-form";
 import { deleteProperty } from "@/app/actions/properties";
 import { humanize, initials, money, toNumber } from "@/lib/format";
 
 export default async function PropertyPage({ params }: PageProps<"/properties/[id]">) {
+  const brand = await requireWorkspace();
   const { id } = await params;
   const property = await db.property.findUnique({
     where: { id },
@@ -25,6 +28,7 @@ export default async function PropertyPage({ params }: PageProps<"/properties/[i
     },
   });
   if (!property) notFound();
+  if (property.brand !== brand) return <OtherWorkspace brand={property.brand} next={`/properties/${id}`} />;
 
   const occupied = property.units.filter((u) => u.status === "OCCUPIED");
   const revenue = occupied.reduce((s, u) => s + toNumber(u.rentAmount), 0);

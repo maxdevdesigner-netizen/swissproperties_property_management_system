@@ -1,14 +1,18 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
+import { requireWorkspace } from "@/lib/workspace";
+import { OtherWorkspace } from "@/components/other-workspace";
 import { Card, Field, PageHeader } from "@/components/ui";
 import { ActionForm } from "@/components/action-form";
 import { updateLeaseTerms } from "@/app/actions/leases";
 import { inputDate, toNumber } from "@/lib/format";
 
 export default async function EditLeasePage({ params }: PageProps<"/leases/[id]/edit">) {
+  const brand = await requireWorkspace();
   const { id } = await params;
-  const lease = await db.lease.findUnique({ where: { id }, include: { tenant: { select: { firstName: true, lastName: true } } } });
+  const lease = await db.lease.findUnique({ where: { id }, include: { tenant: { select: { firstName: true, lastName: true } }, unit: { select: { property: { select: { brand: true } } } } } });
   if (!lease) notFound();
+  if (lease.unit.property.brand !== brand) return <OtherWorkspace brand={lease.unit.property.brand} next={`/leases/${id}/edit`} />;
   const num = (v: unknown) => (v == null ? "" : toNumber(v as never));
 
   return (

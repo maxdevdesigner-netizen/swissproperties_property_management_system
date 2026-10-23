@@ -7,8 +7,10 @@ import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { firstError, formObject, type ActionState } from "@/lib/forms";
-import { addMonths } from "@/lib/domain";
+import { addMonths, startOfDay } from "@/lib/domain";
 import { toNumber } from "@/lib/format";
+import { unitLetElsewhere } from "@/lib/leases";
+import { requireInWorkspace, requireWorkspace } from "@/lib/workspace";
 
 const leaseSchema = z
   .object({
@@ -39,8 +41,12 @@ export async function createLease(_: ActionState, formData: FormData): Promise<A
   const v = parsed.data;
 
   const endDate = v.basis === "yearly" && !v.endDate ? addMonths(v.startDate, 12) : v.endDate;
-  const unit = await db.unit.findUnique({ where: { id: v.unitId } });
-  if (!unit) return { error: "Unit not found" };
+  const brand = await requireWorkspace();
+  const [tenant, unit] = await Promise.all([
+    db.tenant.findFirst({ where: { id: v.tenantId, brand }, select: { id: true } }),
+    db.unit.findFirst({ where: { id: v.unitId, property: { brand } }, select: { id: true } }),
+  ]);
+  if (!tenant || !unit) return { error: "Pick a tenant and a unit from this workspace." };
   const clash = await db.lease.count({ where: { unitId: v.unitId, status: "ACTIVE" } });
   if (clash) return { error: "That unit already has an active lease." };
 
@@ -87,6 +93,7 @@ const termsSchema = z.object({
 
 export async function updateLeaseTerms(id: string, _: ActionState, formData: FormData): Promise<ActionState> {
   const user = await requireUser();
+  await requireInWorkspace("lease", id);
   const parsed = termsSchema.safeParse(formObject(formData));
   if (!parsed.success) return { error: firstError(parsed.error) };
   const v = parsed.data;
@@ -118,7 +125,12 @@ export async function updateLeaseTerms(id: string, _: ActionState, formData: For
 
 export async function setLeaseStatus(id: string, status: "ACTIVE" | "EXPIRED" | "TERMINATED") {
   const user = await requireUser();
+  await requireInWorkspace("lease", id);
   const lease = await db.lease.findUniqueOrThrow({ where: { id } });
+  if (status === "ACTIVE") {
+    if (lease.endDate && lease.endDate < startOfDay()) throw new Error("This lease has ended. Renew it to set a new end date.");
+    if (await unitLetElsewhere(lease.unitId, id)) throw new Error("The unit has another active lease.");
+  }
 
   await db.$transaction(async (tx) => {
     await tx.lease.update({ where: { id }, data: { status } });
@@ -136,6 +148,7 @@ export async function setLeaseStatus(id: string, status: "ACTIVE" | "EXPIRED" | 
 
 export async function generateNextPayment(id: string) {
   const user = await requireUser();
+  await requireInWorkspace("lease", id);
   const lease = await db.lease.findUniqueOrThrow({
     where: { id },
     include: { payments: { orderBy: { dueDate: "desc" }, take: 1 } },
@@ -156,10 +169,15 @@ export async function renewLease(id: string, _: ActionState, formData: FormData)
   const user = await requireUser();
   const parsed = renewSchema.safeParse(formObject(formData));
   if (!parsed.success) return { error: firstError(parsed.error) };
+  await requireInWorkspace("lease", id);
 
   const lease = await db.lease.findUniqueOrThrow({ where: { id } });
+  if (lease.status !== "ACTIVE" && (await unitLetElsewhere(lease.unitId, id))) {
+    return { error: "The unit has been let to someone else since this lease ended." };
+  }
   const from = lease.endDate ?? new Date();
   const newEnd = addMonths(from, parsed.data.months);
+  if (newEnd < startOfDay()) return { error: "The renewed lease would still end before today. Add more months." };
   const amount = parsed.data.rentAmount * (1 + toNumber(lease.vatRate));
 
   await db.$transaction(async (tx) => {
@@ -176,6 +194,7 @@ export async function renewLease(id: string, _: ActionState, formData: FormData)
 
 export async function deleteLease(id: string) {
   const user = await requireUser();
+  await requireInWorkspace("lease", id);
   const lease = await db.lease.findUniqueOrThrow({ where: { id }, include: { payments: { where: { amountPaid: { gt: 0 } }, take: 1 } } });
   if (lease.payments.length) throw new Error("This lease has recorded payments. Terminate it instead of deleting.");
 

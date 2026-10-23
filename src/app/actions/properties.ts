@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { requireInWorkspace } from "@/lib/workspace";
 import { firstError, formObject, type ActionState } from "@/lib/forms";
 import { Brand, PropertyType, UnitStatus, UnitType } from "@/generated/prisma/enums";
 
@@ -45,6 +46,7 @@ export async function createProperty(_: ActionState, formData: FormData): Promis
 
 export async function updateProperty(id: string, _: ActionState, formData: FormData): Promise<ActionState> {
   const user = await requireUser();
+  await requireInWorkspace("property", id);
   const parsed = parseProperty(formData);
   if ("error" in parsed) return { error: parsed.error };
 
@@ -56,6 +58,7 @@ export async function updateProperty(id: string, _: ActionState, formData: FormD
 
 export async function deleteProperty(id: string) {
   const user = await requireUser();
+  await requireInWorkspace("property", id);
   const leases = await db.lease.count({ where: { unit: { propertyId: id } } });
   if (leases > 0) throw new Error("This property has leases. Terminate or delete them before deleting the property.");
   await db.property.delete({ where: { id } });
@@ -77,6 +80,7 @@ const unitSchema = z.object({
 
 export async function createUnit(propertyId: string, _: ActionState, formData: FormData): Promise<ActionState> {
   const user = await requireUser();
+  await requireInWorkspace("property", propertyId);
   const parsed = unitSchema.safeParse(formObject(formData));
   if (!parsed.success) return { error: firstError(parsed.error) };
 
@@ -92,6 +96,7 @@ export async function createUnit(propertyId: string, _: ActionState, formData: F
 
 export async function updateUnit(id: string, _: ActionState, formData: FormData): Promise<ActionState> {
   const user = await requireUser();
+  await requireInWorkspace("unit", id);
   const parsed = unitSchema.safeParse(formObject(formData));
   if (!parsed.success) return { error: firstError(parsed.error) };
 
@@ -110,6 +115,7 @@ export async function updateUnit(id: string, _: ActionState, formData: FormData)
 
 export async function deleteUnit(id: string) {
   const user = await requireUser();
+  await requireInWorkspace("unit", id);
   const unit = await db.unit.findUniqueOrThrow({ where: { id }, include: { _count: { select: { leases: true } } } });
   if (unit._count.leases > 0) throw new Error("This unit has leases and can't be deleted.");
   await db.unit.delete({ where: { id } });

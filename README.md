@@ -46,3 +46,5 @@ npm run dev                   # http://localhost:3000
 6. Deploy to a **staging subdomain** first (`npm run build && npm start` behind nginx), compare
    with the live site, then switch over.
 7. Schedule `POST /api/cron/notifications` hourly with header `Authorization: Bearer $CRON_SECRET`.
+   It marks leases past their end date as expired (freeing their units) and creates alerts.
+   The first run catches up on every lease that has already ended, so try it on the database copy first.

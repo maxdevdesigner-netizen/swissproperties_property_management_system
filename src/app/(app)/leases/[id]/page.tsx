@@ -7,20 +7,26 @@ import { ActionForm, ConfirmButton } from "@/components/action-form";
 import { deleteLease, generateNextPayment, renewLease, setLeaseStatus } from "@/app/actions/leases";
 import { markPaid } from "@/app/actions/payments";
 import { date, money, toNumber } from "@/lib/format";
-import { effectiveStatus, leaseProgress } from "@/lib/domain";
+import { effectiveStatus, leaseProgress, startOfDay } from "@/lib/domain";
+import { requireWorkspace } from "@/lib/workspace";
+import { OtherWorkspace } from "@/components/other-workspace";
 
 export default async function LeasePage({ params }: PageProps<"/leases/[id]">) {
+  const brand = await requireWorkspace();
   const { id } = await params;
   const lease = await db.lease.findUnique({
     where: { id },
     include: {
       tenant: { select: { id: true, firstName: true, lastName: true, phone: true, email: true } },
-      unit: { select: { id: true, unitNumber: true, property: { select: { id: true, name: true } } } },
+      unit: { select: { id: true, unitNumber: true, property: { select: { id: true, name: true, brand: true } } } },
       payments: { orderBy: { dueDate: "asc" } },
     },
   });
   if (!lease) notFound();
+  if (lease.unit.property.brand !== brand) return <OtherWorkspace brand={lease.unit.property.brand} next={`/leases/${id}`} />;
 
+  // An ended lease is renewed, not reactivated: the expiry job would only expire it again.
+  const ended = lease.endDate !== null && lease.endDate < startOfDay();
   const progress = leaseProgress(lease.startDate, lease.endDate);
   const paid = lease.payments.reduce((s, p) => s + toNumber(p.amountPaid), 0);
   const due = lease.payments.reduce((s, p) => s + toNumber(p.amount), 0);
@@ -58,7 +64,7 @@ export default async function LeasePage({ params }: PageProps<"/leases/[id]">) {
           {lease.status === "ACTIVE" ? (
             <ConfirmButton action={setLeaseStatus.bind(null, id, "TERMINATED")} label="Terminate" confirm="Terminate this lease? Future unpaid installments are removed and the unit becomes vacant." />
           ) : (
-            <ConfirmButton action={setLeaseStatus.bind(null, id, "ACTIVE")} label="Reactivate" confirm="Mark this lease active again?" variant="outline" />
+            !ended && <ConfirmButton action={setLeaseStatus.bind(null, id, "ACTIVE")} label="Reactivate" confirm="Mark this lease active again?" variant="outline" />
           )}
           <ConfirmButton action={deleteLease.bind(null, id)} label="Delete" confirm="Delete this lease and its unpaid installments?" />
         </div>

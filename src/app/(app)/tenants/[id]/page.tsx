@@ -7,8 +7,11 @@ import { ActionForm, ConfirmButton } from "@/components/action-form";
 import { deleteTenant, revokePortalAccess, setPortalPassword } from "@/app/actions/tenants";
 import { date, initials, money } from "@/lib/format";
 import { effectiveStatus } from "@/lib/domain";
+import { requireWorkspace } from "@/lib/workspace";
+import { OtherWorkspace } from "@/components/other-workspace";
 
 export default async function TenantPage({ params }: PageProps<"/tenants/[id]">) {
+  const brand = await requireWorkspace();
   const { id } = await params;
   const tenant = await db.tenant.findUnique({
     where: { id },
@@ -20,6 +23,7 @@ export default async function TenantPage({ params }: PageProps<"/tenants/[id]">)
     },
   });
   if (!tenant) notFound();
+  if (tenant.brand !== brand) return <OtherWorkspace brand={tenant.brand} next={`/tenants/${id}`} />;
 
   // Only whether a portal password exists, never the hash itself.
   const portal = await db.tenant.count({ where: { id, portalPassword: { not: null } } });

@@ -1,12 +1,15 @@
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { requireWorkspace } from "@/lib/workspace";
+import { OtherWorkspace } from "@/components/other-workspace";
 import { Logo } from "@/components/logo";
 import { PrintButton } from "@/components/print-button";
 import { date, humanize, money } from "@/lib/format";
 
 export default async function ReceiptPage({ params }: PageProps<"/billing/receipts/[id]">) {
   await requireUser();
+  const brand = await requireWorkspace();
   const { id } = await params;
   const p = await db.payment.findUnique({
     where: { id },
@@ -14,12 +17,19 @@ export default async function ReceiptPage({ params }: PageProps<"/billing/receip
       lease: {
         select: {
           tenant: { select: { firstName: true, lastName: true } },
-          unit: { select: { unitNumber: true, property: { select: { name: true, street: true, city: true } } } },
+          unit: { select: { unitNumber: true, property: { select: { name: true, street: true, city: true, brand: true } } } },
         },
       },
     },
   });
   if (!p || !p.receiptNumber) notFound();
+  if (p.lease.unit.property.brand !== brand) {
+    return (
+      <div className="mx-auto max-w-xl p-10">
+        <OtherWorkspace brand={p.lease.unit.property.brand} next={`/billing/receipts/${id}`} />
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-2xl bg-white p-10 text-slate-900 print:p-0">

@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
+import { requireWorkspace } from "@/lib/workspace";
+import { OtherWorkspace } from "@/components/other-workspace";
 import { Badge, PageHeader, Table } from "@/components/ui";
 import { ConfirmButton } from "@/components/action-form";
 import { deleteUnit, updateUnit } from "@/app/actions/properties";
@@ -8,15 +10,17 @@ import { date, money } from "@/lib/format";
 import { UnitForm } from "../../properties/unit-form";
 
 export default async function UnitPage({ params }: PageProps<"/units/[id]">) {
+  const brand = await requireWorkspace();
   const { id } = await params;
   const unit = await db.unit.findUnique({
     where: { id },
     include: {
-      property: { select: { id: true, name: true } },
+      property: { select: { id: true, name: true, brand: true } },
       leases: { orderBy: { startDate: "desc" }, include: { tenant: { select: { id: true, firstName: true, lastName: true } } } },
     },
   });
   if (!unit) notFound();
+  if (unit.property.brand !== brand) return <OtherWorkspace brand={unit.property.brand} next={`/units/${id}`} />;
 
   return (
     <>
