@@ -7,7 +7,7 @@ import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
-import { getWorkspace } from "@/lib/workspace";
+import { requireInWorkspace, requireWorkspace } from "@/lib/workspace";
 import { firstError, formObject, type ActionState } from "@/lib/forms";
 
 const tenantSchema = z.object({
@@ -31,7 +31,7 @@ function nullify<T extends Record<string, unknown>>(data: T) {
 
 export async function createTenant(_: ActionState, formData: FormData): Promise<ActionState> {
   const user = await requireUser();
-  const brand = (await getWorkspace()) ?? "SWISS_PROPERTIES";
+  const brand = await requireWorkspace();
   const parsed = tenantSchema.safeParse(formObject(formData));
   if (!parsed.success) return { error: firstError(parsed.error) };
 
@@ -48,6 +48,7 @@ export async function createTenant(_: ActionState, formData: FormData): Promise<
 
 export async function updateTenant(id: string, _: ActionState, formData: FormData): Promise<ActionState> {
   const user = await requireUser();
+  await requireInWorkspace("tenant", id);
   const parsed = tenantSchema.safeParse(formObject(formData));
   if (!parsed.success) return { error: firstError(parsed.error) };
 
@@ -60,6 +61,7 @@ export async function updateTenant(id: string, _: ActionState, formData: FormDat
 
 export async function deleteTenant(id: string) {
   const user = await requireUser();
+  await requireInWorkspace("tenant", id);
   const leases = await db.lease.count({ where: { tenantId: id } });
   if (leases > 0) throw new Error("This tenant has leases. Delete those first.");
   await db.tenant.delete({ where: { id } });
@@ -71,6 +73,7 @@ const portalSchema = z.object({ password: z.string().min(8, "must be at least 8 
 
 export async function setPortalPassword(id: string, _: ActionState, formData: FormData): Promise<ActionState> {
   const user = await requireUser();
+  await requireInWorkspace("tenant", id);
   const parsed = portalSchema.safeParse(formObject(formData));
   if (!parsed.success) return { error: firstError(parsed.error) };
 
@@ -82,6 +85,7 @@ export async function setPortalPassword(id: string, _: ActionState, formData: Fo
 
 export async function revokePortalAccess(id: string) {
   const user = await requireUser();
+  await requireInWorkspace("tenant", id);
   await db.tenant.update({ where: { id }, data: { portalPassword: null } });
   await audit({ action: "UPDATE", entity: "Tenant", entityId: id, userId: user.id, details: { portalAccess: "revoked" } });
   revalidatePath(`/tenants/${id}`);

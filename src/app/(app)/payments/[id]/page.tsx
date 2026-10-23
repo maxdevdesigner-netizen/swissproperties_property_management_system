@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
+import { requireWorkspace } from "@/lib/workspace";
+import { OtherWorkspace } from "@/components/other-workspace";
 import { Badge, ButtonLink, Card, Field, PageHeader } from "@/components/ui";
 import { ActionForm, ConfirmButton } from "@/components/action-form";
 import { deletePayment, recordPayment } from "@/app/actions/payments";
@@ -9,6 +11,7 @@ import { effectiveStatus, outstanding } from "@/lib/domain";
 import { PaymentMethod } from "@/generated/prisma/enums";
 
 export default async function PaymentPage({ params }: PageProps<"/payments/[id]">) {
+  const brand = await requireWorkspace();
   const { id } = await params;
   const p = await db.payment.findUnique({
     where: { id },
@@ -17,12 +20,13 @@ export default async function PaymentPage({ params }: PageProps<"/payments/[id]"
         select: {
           id: true,
           tenant: { select: { id: true, firstName: true, lastName: true } },
-          unit: { select: { unitNumber: true, property: { select: { name: true } } } },
+          unit: { select: { unitNumber: true, property: { select: { name: true, brand: true } } } },
         },
       },
     },
   });
   if (!p) notFound();
+  if (p.lease.unit.property.brand !== brand) return <OtherWorkspace brand={p.lease.unit.property.brand} next={`/payments/${id}`} />;
   const status = effectiveStatus(p);
   const owed = outstanding(p);
 

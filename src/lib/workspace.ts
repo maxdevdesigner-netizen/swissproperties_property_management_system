@@ -1,6 +1,7 @@
 import "server-only";
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { db } from "@/lib/db";
 import type { Brand } from "@/generated/prisma/enums";
 
 export const WORKSPACE_COOKIE = "workspace";
@@ -33,5 +34,31 @@ export async function getWorkspace(): Promise<Brand | null> {
 export async function requireWorkspace(): Promise<Brand> {
   const brand = await getWorkspace();
   if (!brand) redirect("/workspace");
+  return brand;
+}
+
+// The workspace a record belongs to. Leases and payments follow their unit's property, as the lists do.
+const recordBrand = {
+  tenant: (id: string) => db.tenant.findUnique({ where: { id }, select: { brand: true } }).then((r) => r?.brand),
+  property: (id: string) => db.property.findUnique({ where: { id }, select: { brand: true } }).then((r) => r?.brand),
+  unit: (id: string) =>
+    db.unit.findUnique({ where: { id }, select: { property: { select: { brand: true } } } }).then((r) => r?.property.brand),
+  lease: (id: string) =>
+    db.lease
+      .findUnique({ where: { id }, select: { unit: { select: { property: { select: { brand: true } } } } } })
+      .then((r) => r?.unit.property.brand),
+  payment: (id: string) =>
+    db.payment
+      .findUnique({ where: { id }, select: { lease: { select: { unit: { select: { property: { select: { brand: true } } } } } } } })
+      .then((r) => r?.lease.unit.property.brand),
+};
+
+/**
+ * For server actions that take a record id: a record outside the active workspace is
+ * treated as not found, so nothing can be changed in the workspace you aren't in.
+ */
+export async function requireInWorkspace(kind: keyof typeof recordBrand, id: string): Promise<Brand> {
+  const brand = await requireWorkspace();
+  if ((await recordBrand[kind](id)) !== brand) notFound();
   return brand;
 }
