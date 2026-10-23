@@ -109,6 +109,14 @@ export function isExpiringSoon(lease: { status: string; endDate: Date | null }, 
   return left >= 0 && left <= days;
 }
 
+/** Monthly due dates from start, up to (not including) the end date. Open-ended leases get just the first. */
+export function scheduleDates(start: Date, end: Date | undefined): Date[] {
+  if (!end) return [start];
+  const dates: Date[] = [];
+  for (let d = start, i = 0; d < end && i < 120; i++, d = addMonths(start, i)) dates.push(d);
+  return dates;
+}
+
 export function addMonths(d: Date, months: number): Date {
   const r = new Date(d);
   const day = r.getDate();

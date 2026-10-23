@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { firstError, formObject, type ActionState } from "@/lib/forms";
-import { addMonths } from "@/lib/domain";
+import { addMonths, scheduleDates } from "@/lib/domain";
 import { toNumber } from "@/lib/format";
 
 const leaseSchema = z
@@ -24,12 +24,10 @@ const leaseSchema = z
   })
   .refine((v) => !v.endDate || v.endDate > v.startDate, { message: "End date must be after start date", path: ["endDate"] });
 
-/** Monthly due dates from start, up to (not including) the end date. Open-ended leases get just the first. */
-function scheduleDates(start: Date, end: Date | undefined): Date[] {
-  if (!end) return [start];
-  const dates: Date[] = [];
-  for (let d = start, i = 0; d < end && i < 120; i++, d = addMonths(start, i)) dates.push(d);
-  return dates;
+/** Whether the unit is let under any active lease other than `leaseId`. A unit has one tenant at a time. */
+async function unitTaken(unitId: string, leaseId?: string) {
+  const count = await db.lease.count({ where: { unitId, status: "ACTIVE", ...(leaseId ? { id: { not: leaseId } } : {}) } });
+  return count > 0;
 }
 
 export async function createLease(_: ActionState, formData: FormData): Promise<ActionState> {
@@ -41,8 +39,7 @@ export async function createLease(_: ActionState, formData: FormData): Promise<A
   const endDate = v.basis === "yearly" && !v.endDate ? addMonths(v.startDate, 12) : v.endDate;
   const unit = await db.unit.findUnique({ where: { id: v.unitId } });
   if (!unit) return { error: "Unit not found" };
-  const clash = await db.lease.count({ where: { unitId: v.unitId, status: "ACTIVE" } });
-  if (clash) return { error: "That unit already has an active lease." };
+  if (await unitTaken(v.unitId)) return { error: "That unit already has an active lease." };
 
   const installment = v.rentAmount * (1 + v.vatRate);
   const lease = await db.$transaction(async (tx) => {
@@ -119,6 +116,9 @@ export async function updateLeaseTerms(id: string, _: ActionState, formData: For
 export async function setLeaseStatus(id: string, status: "ACTIVE" | "EXPIRED" | "TERMINATED") {
   const user = await requireUser();
   const lease = await db.lease.findUniqueOrThrow({ where: { id } });
+  if (status === "ACTIVE" && (await unitTaken(lease.unitId, id))) {
+    throw new Error("The unit has been let under another active lease. End that lease before reactivating this one.");
+  }
 
   await db.$transaction(async (tx) => {
     await tx.lease.update({ where: { id }, data: { status } });
@@ -158,6 +158,9 @@ export async function renewLease(id: string, _: ActionState, formData: FormData)
   if (!parsed.success) return { error: firstError(parsed.error) };
 
   const lease = await db.lease.findUniqueOrThrow({ where: { id } });
+  if (await unitTaken(lease.unitId, id)) {
+    return { error: "The unit has been let under another active lease, so this one can't be renewed." };
+  }
   const from = lease.endDate ?? new Date();
   const newEnd = addMonths(from, parsed.data.months);
   const amount = parsed.data.rentAmount * (1 + toNumber(lease.vatRate));
