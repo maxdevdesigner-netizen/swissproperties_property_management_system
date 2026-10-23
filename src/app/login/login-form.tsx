@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { Button, Field, FormError } from "@/components/ui";
+import { localPath } from "@/lib/safe-redirect";
 
 export function LoginForm() {
   const router = useRouter();
@@ -26,8 +27,7 @@ export function LoginForm() {
       setError("Invalid email or password.");
       return;
     }
-    const callbackUrl = params.get("callbackUrl");
-    router.replace(callbackUrl?.startsWith("/") ? callbackUrl : "/workspace");
+    router.replace(localPath(params.get("callbackUrl"), "/workspace"));
     router.refresh();
   }
 

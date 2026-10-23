@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { WORKSPACE_COOKIE, isBrand } from "@/lib/workspace";
+import { localPath } from "@/lib/safe-redirect";
 
 export async function switchWorkspace(formData: FormData) {
   await requireUser();
@@ -17,6 +18,5 @@ export async function switchWorkspace(formData: FormData) {
     path: "/",
     maxAge: 60 * 60 * 24 * 365,
   });
-  const next = formData.get("next");
-  redirect(typeof next === "string" && next.startsWith("/") ? next : "/");
+  redirect(localPath(formData.get("next")));
 }
